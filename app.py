@@ -12,7 +12,7 @@ uploaded_file = st.file_uploader("📂 อัปโหลดไฟล์ Excel (
 
 if uploaded_file is not None:
     try:
-        # 1. โหลดข้อมูล Stock Material โดยข้าม 2 แถวแรก เพื่อเอาหัวตารางจริงในแถวที่ 3 (header=2)
+        # 1. โหลดข้อมูล Stock Material (แถวที่ 3 เป็นหัวตารางจริง header=2)
         stock_df = pd.read_excel(uploaded_file, sheet_name="Stock Material", header=2)
         sap_df = pd.read_excel(uploaded_file, sheet_name="SAP_ZRMM0004")
         
@@ -67,11 +67,8 @@ if uploaded_file is not None:
             # เช็คว่ามี PR หรือไม่ (ทั้งจาก SAP หรือจากคอลัมน์ K)
             has_pr = bool(pr_val) or has_k_pr
             
-            # กำหนดเงื่อนไข Remind to buy
-            if has_pr:
-                remind_to_buy = "Follow PR&PO"
-            else:
-                remind_to_buy = "Buy"
+            # กำหนดสถานะ Remind to buy
+            remind_to_buy = "Follow PR&PO" if has_pr else "Buy"
                 
             report_data.append({
                 'Material Code': mat_code,
@@ -96,7 +93,7 @@ if uploaded_file is not None:
         
         st.write("---")
         
-        # 6. แต่งสีเซลล์ให้อ่านง่าย (Styler)
+        # 6. ฟังก์ชันแต่งสีเซลล์ (รองรับทั้ง Pandas map และ applymap)
         def highlight_status(val):
             if val == 'Buy':
                 return 'background-color: #ff4d4d; color: white; font-weight: bold; text-align: center;'
@@ -104,10 +101,15 @@ if uploaded_file is not None:
                 return 'background-color: #ffa600; color: black; font-weight: bold; text-align: center;'
             return ''
 
-        styled_df = final_df.style.applymap(highlight_status, subset=['Remind to buy']) \
-                                  .format({'Safety Stock': '{:,.2f}', 'Warehouse Stock': '{:,.2f}'})
+        styler = final_df.style
+        if hasattr(styler, 'map'):
+            styled_df = styler.map(highlight_status, subset=['Remind to buy'])
+        else:
+            styled_df = styler.applymap(highlight_status, subset=['Remind to buy'])
+            
+        styled_df = styled_df.format({'Safety Stock': '{:,.2f}', 'Warehouse Stock': '{:,.2f}'})
         
-        # แสดงผลตารางแบบ Interactive พร้อมจัดความกว้างเต็มจอ
+        # แสดงผลตารางบน Streamlit
         st.dataframe(styled_df, use_container_width=True, height=550)
         
         # 7. ปุ่มดาวน์โหลด Daily Report (Excel)
